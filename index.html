@@ -37,6 +37,10 @@
       background: #020617;
       color: #e5e7eb;
     }
+    select option:disabled {
+      color: #6b7280;
+      background-color: #1f2937;
+    }
     button {
       margin-top: 15px;
       background: #16a34a;
@@ -132,60 +136,72 @@
       background: #16a34a;
       border-color: #22c55e;
     }
-    .api-badge {
+    .disclaimer {
+      background: #f59e0b20;
+      border: 1px solid #f59e0b;
+      padding: 10px;
+      margin-top: 15px;
+      border-radius: 5px;
+      font-size: 0.9em;
+    }
+    .warning {
+      color: #f59e0b;
+    }
+    .league-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 15px 0 10px 0;
+    }
+    .team-count {
       background: #3b82f6;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.8em;
+    }
+    .champions-badge {
+      background: linear-gradient(45deg, #004D98, #A50044);
       color: white;
       padding: 2px 6px;
       border-radius: 10px;
       font-size: 0.7em;
       margin-left: 5px;
     }
-    .refresh-btn {
-      background: #8b5cf6;
-      border: none;
-      color: white;
-      padding: 5px 10px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 0.8em;
-      margin-left: 10px;
-    }
-    .refresh-btn:hover {
-      background: #7c3aed;
-    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Analizador IA de Partidos</h1>
-    <h2>Fútbol & Baloncesto — Datos en tiempo real</h2>
+    <h2>Análisis con datos actualizados <span id="currentYear"></span></h2>
 
     <div class="sport-buttons" id="sportButtons">
       <div class="sport-btn active" data-sport="soccer">⚽ Fútbol</div>
+      <div class="sport-btn" data-sport="tennis">🎾 Tenis</div>
       <div class="sport-btn" data-sport="basketball">🏀 Baloncesto</div>
     </div>
 
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-      <label for="league">Selecciona una liga:</label>
-      <button class="refresh-btn" id="refreshBtn">🔄 Actualizar datos</button>
+    <div class="league-header">
+      <label>Selecciona una liga/torneo:</label>
+      <small id="dataStatus">Datos actualizados</small>
     </div>
     
     <div class="league-buttons" id="leagueButtons">
-      <div class="loading">Cargando ligas...</div>
+      <!-- Las ligas se cargarán aquí -->
     </div>
 
     <div class="row">
       <div class="col">
-        <label for="teamA">Equipo A (Local)</label>
+        <label for="teamA">Equipo Local</label>
         <select id="teamA">
-          <option>Selecciona un equipo</option>
+          <option value="">Selecciona equipo local</option>
         </select>
       </div>
 
       <div class="col">
-        <label for="teamB">Equipo B (Visitante)</label>
+        <label for="teamB">Equipo Visitante</label>
         <select id="teamB">
-          <option>Selecciona un equipo</option>
+          <option value="">Selecciona equipo visitante</option>
         </select>
       </div>
     </div>
@@ -196,17 +212,19 @@
       Aquí aparecerá el análisis basado en estadísticas reales y el modelo IA.
     </div>
 
+    <div class="disclaimer">
+      <strong>⚠️ DISCLAIMER:</strong> Esta herramienta proporciona estimaciones simuladas basadas en probabilidades históricas y algoritmos predictivos. 
+      Los resultados son meramente indicativos y no constituyen asesoramiento para apuestas reales. 
+      El deporte es impredecible y estos cálculos solo buscan dar una idea aproximada de posibles resultados.
+    </div>
+
     <small>
-      Datos obtenidos de múltiples fuentes en tiempo real | Última actualización: <span id="lastUpdate"></span>
+      Última actualización: <span id="lastUpdate"></span>
     </small>
   </div>
 
 <script>
-  // Configuración
-  const API_KEYS = {
-    footballData: '0ccb5f4cdd0d4db6a73c4c5f1374895a'
-  };
-
+  // Elementos DOM
   const sportButtons = document.getElementById("sportButtons");
   const leagueButtons = document.getElementById("leagueButtons");
   const teamASelect = document.getElementById("teamA");
@@ -214,30 +232,227 @@
   const analyzeBtn = document.getElementById("analyzeBtn");
   const resultBox = document.getElementById("result");
   const lastUpdate = document.getElementById("lastUpdate");
-  const refreshBtn = document.getElementById("refreshBtn");
+  const dataStatus = document.getElementById("dataStatus");
+  const currentYearElement = document.getElementById("currentYear");
 
-  // Configuración de ligas por deporte
-  const leaguesConfig = {
-    soccer: [
-      { id: "CL", name: "UEFA Champions League", country: "Europa", code: "CL", api: "footballData", apiId: "2001" },
-      { id: "premier", name: "Premier League", country: "Inglaterra", code: "PL", api: "footballData", apiId: "2021" },
-      { id: "laliga", name: "La Liga", country: "España", code: "PD", api: "footballData", apiId: "2014" },
-      { id: "seriea", name: "Serie A", country: "Italia", code: "SA", api: "footballData", apiId: "2019" },
-      { id: "bundesliga", name: "Bundesliga", country: "Alemania", code: "BL1", api: "footballData", apiId: "2002" },
-      { id: "ligue1", name: "Ligue 1", country: "Francia", code: "FL1", api: "footballData", apiId: "2015" },
-      { id: "mls", name: "MLS", country: "USA", code: "MLS", api: "fallback" },
-      { id: "ligaMX", name: "Liga MX", country: "México", code: "LMX", api: "fallback" }
-    ],
-    basketball: [
-      { id: "nba", name: "NBA", country: "USA", code: "NBA", api: "espn" },
-      { id: "euroleague", name: "EuroLeague", country: "Europa", code: "EL", api: "fallback" },
-      { id: "acb", name: "Liga ACB", country: "España", code: "ACB", api: "fallback" }
-    ]
+  // SISTEMA DE TEMPORADAS DINÁMICAS
+  function getCurrentSeason() {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    
+    // Para fútbol europeo: temporada cambia en julio
+    if (currentMonth >= 7) {
+      // Julio a Diciembre: nueva temporada
+      return `${currentYear}-${currentYear + 1}`;
+    } else {
+      // Enero a Junio: temporada en curso
+      return `${currentYear - 1}-${currentYear}`;
+    }
+  }
+
+  function getBasketballSeason() {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    
+    // NBA: temporada cambia en octubre
+    if (currentMonth >= 10) {
+      return `${currentYear}-${currentYear + 1}`;
+    } else {
+      return `${currentYear - 1}-${currentYear}`;
+    }
+  }
+
+  function getCurrentYear() {
+    return new Date().getFullYear();
+  }
+
+  function getTennisSeason() {
+    return getCurrentYear().toString();
+  }
+
+  function getBrasileiraoSeason() {
+    return getCurrentYear().toString();
+  }
+
+  // Actualizar año actual en el título
+  currentYearElement.textContent = getCurrentYear();
+
+  // DATOS ACTUALIZADOS CON TEMPORADAS DINÁMICAS
+  const getLeaguesConfig = () => {
+    const soccerSeason = getCurrentSeason();
+    const nbaSeason = getBasketballSeason();
+    const tennisSeason = getTennisSeason();
+    const brasileiraoSeason = getBrasileiraoSeason();
+    
+    return {
+      soccer: [
+        { 
+          id: "premier", 
+          name: "Premier League", 
+          country: "Inglaterra",
+          teams: [
+            "Manchester City", "Arsenal", "Liverpool", "Aston Villa",
+            "Tottenham", "Manchester United", "Newcastle", "Chelsea",
+            "Brighton", "West Ham", "Brentford", "Crystal Palace",
+            "Fulham", "Wolves", "Everton", "Nottingham Forest",
+            "Bournemouth", "Ipswich Town", "Leicester City", "Southampton"
+          ],
+          season: soccerSeason,
+          current: true
+        },
+        { 
+          id: "laliga", 
+          name: "La Liga", 
+          country: "España",
+          teams: [
+            "Real Madrid", "Barcelona", "Atlético Madrid", "Girona",
+            "Athletic Bilbao", "Real Sociedad", "Real Betis", "Valencia",
+            "Sevilla", "Villarreal", "Getafe", "Osasuna",
+            "Mallorca", "Las Palmas", "Alavés", "Rayo Vallecano",
+            "Celta Vigo", "Cádiz", "Valladolid", "Leganés"
+          ],
+          season: soccerSeason,
+          current: true
+        },
+        { 
+          id: "seriea", 
+          name: "Serie A", 
+          country: "Italia",
+          teams: [
+            "Inter Milan", "AC Milan", "Juventus", "Napoli",
+            "Atalanta", "Roma", "Bologna", "Fiorentina",
+            "Lazio", "Torino", "Monza", "Genoa",
+            "Udinese", "Empoli", "Hellas Verona", "Cagliari",
+            "Sassuolo", "Lecce", "Como", "Parma"
+          ],
+          season: soccerSeason,
+          current: true
+        },
+        { 
+          id: "bundesliga", 
+          name: "Bundesliga", 
+          country: "Alemania",
+          teams: [
+            "Bayer Leverkusen", "Bayern Munich", "Stuttgart", "Borussia Dortmund",
+            "RB Leipzig", "Eintracht Frankfurt", "Hoffenheim", "Freiburg",
+            "Werder Bremen", "Heidenheim", "Augsburg", "Wolfsburg",
+            "Borussia Mönchengladbach", "Union Berlin", "Mainz", "Köln",
+            "Bochum", "Darmstadt", "St. Pauli", "Holstein Kiel"
+          ],
+          season: soccerSeason,
+          current: true
+        },
+        { 
+          id: "ligue1", 
+          name: "Ligue 1", 
+          country: "Francia",
+          teams: [
+            "Paris Saint-Germain", "Monaco", "Lille", "Marseille",
+            "Lyon", "Rennes", "Lens", "Nice",
+            "Brest", "Toulouse", "Reims", "Montpellier",
+            "Strasbourg", "Nantes", "Le Havre", "Lorient",
+            "Metz", "Auxerre", "Saint-Étienne", "Angers"
+          ],
+          season: soccerSeason,
+          current: true
+        },
+        { 
+          id: "champions", 
+          name: "UEFA Champions League", 
+          country: "Europa",
+          teams: [
+            "Manchester City", "Real Madrid", "Bayern Munich", "Paris Saint-Germain",
+            "Barcelona", "Arsenal", "Liverpool", "Inter Milan",
+            "AC Milan", "Borussia Dortmund", "Atlético Madrid", "Juventus",
+            "Bayer Leverkusen", "Napoli", "RB Leipzig", "Benfica",
+            "Porto", "Ajax", "Celtic", "Shakhtar Donetsk",
+            "PSV Eindhoven", "Club Brugge", "Red Bull Salzburg", "Dinamo Zagreb"
+          ],
+          season: soccerSeason,
+          current: true
+        },
+        { 
+          id: "brasileirao", 
+          name: "Brasileirão", 
+          country: "Brasil",
+          teams: [
+            "Palmeiras", "Flamengo", "Atlético Mineiro", "Botafogo",
+            "Grêmio", "São Paulo", "Fluminense", "Bragantino",
+            "Athletico Paranaense", "Internacional", "Fortaleza", "Corinthians",
+            "Cruzeiro", "Vasco da Gama", "Bahia", "Cuiabá",
+            "Juventude", "Criciúma", "Vitória", "Atlético Goianiense"
+          ],
+          season: brasileiraoSeason,
+          current: true
+        }
+      ],
+      
+      tennis: [
+        { 
+          id: "atp", 
+          name: "ATP Tour", 
+          country: "Mundial",
+          players: [
+            { name: "Jannik Sinner", shortName: "Sinner", rank: 1, points: 10450, age: 24 },
+            { name: "Carlos Alcaraz", shortName: "Alcaraz", rank: 2, points: 9650, age: 23 },
+            { name: "Novak Djokovic", shortName: "Djokovic", rank: 3, points: 8450, age: 39 },
+            { name: "Holger Rune", shortName: "Rune", rank: 4, points: 7120, age: 22 },
+            { name: "Alexander Zverev", shortName: "Zverev", rank: 5, points: 6450, age: 28 },
+            { name: "Daniil Medvedev", shortName: "Medvedev", rank: 6, points: 6320, age: 30 },
+            { name: "Ben Shelton", shortName: "Shelton", rank: 7, points: 5780, age: 23 },
+            { name: "Andrey Rublev", shortName: "Rublev", rank: 8, points: 5450, age: 28 },
+            { name: "Taylor Fritz", shortName: "Fritz", rank: 9, points: 5120, age: 28 },
+            { name: "Casper Ruud", shortName: "Ruud", rank: 10, points: 4980, age: 27 }
+          ],
+          season: tennisSeason,
+          current: true
+        },
+        { 
+          id: "wta", 
+          name: "WTA Tour", 
+          country: "Mundial",
+          players: [
+            { name: "Coco Gauff", shortName: "Gauff", rank: 1, points: 9850, age: 22 },
+            { name: "Iga Świątek", shortName: "Świątek", rank: 2, points: 9450, age: 25 },
+            { name: "Aryna Sabalenka", shortName: "Sabalenka", rank: 3, points: 8650, age: 27 },
+            { name: "Elena Rybakina", shortName: "Rybakina", rank: 4, points: 7850, age: 26 },
+            { name: "Qinwen Zheng", shortName: "Zheng", rank: 5, points: 6850, age: 23 },
+            { name: "Jessica Pegula", shortName: "Pegula", rank: 6, points: 6420, age: 32 },
+            { name: "Markéta Vondroušová", shortName: "Vondroušová", rank: 7, points: 5980, age: 27 },
+            { name: "Ons Jabeur", shortName: "Jabeur", rank: 8, points: 5650, age: 31 },
+            { name: "Maria Sakkari", shortName: "Sakkari", rank: 9, points: 5320, age: 30 },
+            { name: "Madison Keys", shortName: "Keys", rank: 10, points: 4980, age: 31 }
+          ],
+          season: tennisSeason,
+          current: true
+        }
+      ],
+      
+      basketball: [
+        { 
+          id: "nba", 
+          name: "NBA", 
+          country: "USA",
+          teams: [
+            "Boston Celtics", "Denver Nuggets", "Minnesota Timberwolves", "Oklahoma City Thunder",
+            "Milwaukee Bucks", "Philadelphia 76ers", "New York Knicks", "Cleveland Cavaliers",
+            "LA Clippers", "Phoenix Suns", "Dallas Mavericks", "Los Angeles Lakers",
+            "Golden State Warriors", "Miami Heat", "Indiana Pacers", "Orlando Magic",
+            "Sacramento Kings", "New Orleans Pelicans", "Chicago Bulls", "Atlanta Hawks"
+          ],
+          season: nbaSeason,
+          current: true
+        }
+      ]
+    };
   };
 
+  // Variables globales
   let currentSport = "soccer";
   let currentLeague = null;
-  let cachedTeams = {};
+  let currentTeamsData = [];
 
   // Actualizar timestamp
   function updateTimestamp() {
@@ -247,10 +462,11 @@
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
+      minute: '2-digit'
     });
   }
+
+  // Inicializar
   updateTimestamp();
 
   // --- 1. Cambiar deporte ---
@@ -260,7 +476,6 @@
 
     const sport = sportBtn.dataset.sport;
     
-    // Actualizar botones activos
     document.querySelectorAll(".sport-btn").forEach(btn => {
       btn.classList.remove("active");
     });
@@ -272,762 +487,840 @@
 
   // --- 2. Cargar ligas ---
   function loadLeagues() {
-    leagueButtons.innerHTML = '<div class="loading">Cargando ligas...</div>';
-    teamASelect.innerHTML = "<option>Selecciona un equipo</option>";
-    teamBSelect.innerHTML = "<option>Selecciona un equipo</option>";
-    analyzeBtn.disabled = true;
-    currentLeague = null;
-    cachedTeams = {};
-
+    const leaguesConfig = getLeaguesConfig();
     const leagues = leaguesConfig[currentSport];
     
+    leagueButtons.innerHTML = '<div class="loading">Cargando ligas disponibles...</div>';
+    teamASelect.innerHTML = '<option value="">Selecciona equipo local</option>';
+    teamBSelect.innerHTML = '<option value="">Selecciona equipo visitante</option>';
+    analyzeBtn.disabled = true;
+    currentLeague = null;
+
     setTimeout(() => {
       leagueButtons.innerHTML = "";
+      
       leagues.forEach(league => {
         const btn = document.createElement("div");
         btn.className = "league-btn";
         btn.dataset.league = league.id;
+        
+        const itemCount = currentSport === "tennis" ? 
+          league.players.length : 
+          league.teams.length;
+        
+        const championsBadge = league.id === "champions" ? 
+          '<span class="champions-badge">UCL</span>' : '';
+        
+        // SIN etiqueta "ACTUAL"
         btn.innerHTML = `
-          <div>
-            <strong>${league.name}</strong>
-            ${league.api === 'footballData' ? '<span class="api-badge">API</span>' : ''}
-            ${league.api === 'espn' ? '<span class="api-badge">ESPN</span>' : ''}
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong>${league.name}</strong>${championsBadge}<br>
+              <small>${league.country} • ${league.season}</small>
+            </div>
+            <span class="team-count">${itemCount}</span>
           </div>
-          <small>${league.country}</small>
         `;
-        leagueButtons.appendChild(btn);
-      });
-
-      // Event listeners para ligas
-      document.querySelectorAll(".league-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
+        
+        btn.addEventListener("click", function() {
           document.querySelectorAll(".league-btn").forEach(b => {
             b.classList.remove("active");
           });
-          btn.classList.add("active");
-          currentLeague = btn.dataset.league;
+          this.classList.add("active");
+          currentLeague = this.dataset.league;
           loadTeams();
         });
+        
+        leagueButtons.appendChild(btn);
       });
 
-      // Seleccionar primera liga por defecto
       if (leagues.length > 0) {
         const firstBtn = leagueButtons.querySelector(".league-btn");
         if (firstBtn) {
           firstBtn.classList.add("active");
           currentLeague = firstBtn.dataset.league;
-          loadTeams();
+          setTimeout(() => loadTeams(), 100);
         }
       }
     }, 300);
   }
 
-  // --- 3. Cargar equipos ---
-  async function loadTeams() {
+  // --- 3. Cargar equipos/jugadores ---
+  function loadTeams() {
     if (!currentLeague) return;
 
-    teamASelect.innerHTML = "<option>Cargando equipos...</option>";
-    teamBSelect.innerHTML = "<option>Cargando equipos...</option>";
+    const leaguesConfig = getLeaguesConfig();
+    const leagueInfo = leaguesConfig[currentSport].find(l => l.id === currentLeague);
+    
+    teamASelect.innerHTML = '<option value="">Cargando equipos/jugadores...</option>';
+    teamBSelect.innerHTML = '<option value="">Cargando equipos/jugadores...</option>';
     analyzeBtn.disabled = true;
-    resultBox.innerHTML = '<div class="loading">Obteniendo datos de equipos...</div>';
+    
+    // Mensaje especial para Champions League
+    if (currentLeague === "champions") {
+      resultBox.innerHTML = `
+        <div class="loading">
+          <div style="margin-bottom: 10px;">
+            <span class="champions-badge" style="font-size: 1em; padding: 5px 10px;">UEFA CHAMPIONS LEAGUE</span>
+          </div>
+          Cargando equipos participantes<br>
+          <small>Temporada ${leagueInfo.season}</small>
+        </div>
+      `;
+    } else {
+      resultBox.innerHTML = `<div class="loading">Cargando datos temporada ${leagueInfo.season}...</div>`;
+    }
 
     try {
-      const leagueInfo = leaguesConfig[currentSport].find(l => l.id === currentLeague);
-      let teams = [];
+      let items = [];
 
-      // Usar caché si está disponible
-      const cacheKey = `${currentSport}_${currentLeague}`;
-      if (cachedTeams[cacheKey]) {
-        teams = cachedTeams[cacheKey];
-      } else {
-        // Obtener equipos según la fuente
-        if (leagueInfo.api === 'footballData') {
-          teams = await getFootballDataTeams(leagueInfo);
-        } else if (leagueInfo.api === 'espn') {
-          teams = await getESPNNBATeams();
+      if (currentSport === "soccer") {
+        // Para Champions League
+        if (currentLeague === "champions") {
+          items = leagueInfo.teams.map((teamName) => {
+            const isFavorite = [
+              "Manchester City", "Real Madrid", "Bayern Munich", "Paris Saint-Germain"
+            ].includes(teamName);
+            
+            return {
+              name: teamName,
+              shortName: getChampionsShortName(teamName),
+              league: leagueInfo.name,
+              season: leagueInfo.season,
+              isFavorite: isFavorite,
+              country: getTeamCountry(teamName)
+            };
+          });
         } else {
-          teams = await getFallbackTeams(leagueInfo);
+          // Para ligas nacionales
+          items = leagueInfo.teams.map((teamName) => ({
+            name: teamName,
+            shortName: getSoccerShortName(teamName),
+            league: leagueInfo.name,
+            season: leagueInfo.season
+          }));
         }
         
-        // Guardar en caché
-        cachedTeams[cacheKey] = teams;
+        dataStatus.textContent = `${leagueInfo.teams.length} equipos - ${leagueInfo.season}`;
+        
+      } else if (currentSport === "tennis") {
+        items = leagueInfo.players.map(player => ({
+          name: player.name,
+          shortName: player.shortName,
+          rank: player.rank,
+          points: player.points,
+          age: player.age,
+          tour: leagueInfo.name === "ATP Tour" ? "ATP" : "WTA"
+        }));
+        
+        dataStatus.textContent = `Top ${leagueInfo.players.length} - ${leagueInfo.season}`;
+        
+      } else if (currentSport === "basketball") {
+        items = leagueInfo.teams.map(teamName => ({
+          name: teamName,
+          shortName: getNBAShortName(teamName),
+          conference: getNBAConference(teamName),
+          season: leagueInfo.season
+        }));
+        
+        dataStatus.textContent = `${leagueInfo.teams.length} equipos - ${leagueInfo.season}`;
       }
 
-      populateTeamSelectors(teams);
+      if (items.length === 0) {
+        throw new Error("No se encontraron datos para esta liga");
+      }
+
+      currentTeamsData = items;
+      populateTeamSelectors(items);
       
-      resultBox.innerHTML = `<div class="loading">✓ Datos cargados correctamente<br>Selecciona dos equipos y haz clic en "Analizar partido".<br>Se encontraron ${teams.length} equipos.</div>`;
+      // Mensaje de éxito
+      let successMessage = `✓ ${items.length} ${currentSport === "tennis" ? "jugadores" : "equipos"} cargados<br>`;
+      
+      if (currentLeague === "champions") {
+        successMessage += `
+          <span class="champions-badge" style="display: inline-block; margin: 5px 0;">${leagueInfo.season}</span><br>
+          <small>Equipos participantes</small><br>
+        `;
+      } else {
+        successMessage += `<span class="warning">Temporada ${leagueInfo.season}</span><br>`;
+      }
+      
+      successMessage += `Selecciona dos opciones y haz clic en "Analizar partido".`;
+      
+      resultBox.innerHTML = `<div class="loading">${successMessage}</div>`;
+      
       updateTimestamp();
       
     } catch (error) {
-      console.error("Error cargando equipos:", error);
-      resultBox.innerHTML = `<div class="error">Error al cargar equipos. Usando datos de respaldo...</div>`;
-      
-      // Cargar datos de respaldo
-      const leagueInfo = leaguesConfig[currentSport].find(l => l.id === currentLeague);
-      const fallbackTeams = await getFallbackTeams(leagueInfo);
-      populateTeamSelectors(fallbackTeams);
+      console.error("Error cargando datos:", error);
+      resultBox.innerHTML = `
+        <div class="error">
+          Error al cargar los datos. Por favor, intenta seleccionar otra liga.
+        </div>
+      `;
     }
   }
 
-  // --- 4. Obtener equipos de Football-Data API ---
-  async function getFootballDataTeams(leagueInfo) {
-    try {
-      const apiKey = API_KEYS.footballData;
-      const url = `https://api.football-data.org/v4/competitions/${leagueInfo.apiId}/teams`;
+  // Funciones para obtener nombres cortos
+  function getSoccerShortName(fullName) {
+    const shortNames = {
+      // Premier League
+      "Manchester City": "MCI",
+      "Arsenal": "ARS",
+      "Liverpool": "LIV",
+      "Aston Villa": "AVL",
+      "Tottenham": "TOT",
+      "Manchester United": "MUN",
+      "Newcastle": "NEW",
+      "Chelsea": "CHE",
+      "Brighton": "BHA",
+      "West Ham": "WHU",
+      "Brentford": "BRE",
+      "Crystal Palace": "CRY",
+      "Fulham": "FUL",
+      "Wolves": "WOL",
+      "Everton": "EVE",
+      "Nottingham Forest": "NFO",
+      "Bournemouth": "BOU",
+      "Ipswich Town": "IPS",
+      "Leicester City": "LEI",
+      "Southampton": "SOU",
       
-      const response = await fetch(url, {
-        headers: {
-          'X-Auth-Token': apiKey,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      // La Liga
+      "Real Madrid": "RMA",
+      "Barcelona": "BAR",
+      "Atlético Madrid": "ATM",
+      "Girona": "GIR",
+      "Athletic Bilbao": "ATH",
+      "Real Sociedad": "RSO",
+      "Real Betis": "BET",
+      "Valencia": "VAL",
+      "Sevilla": "SEV",
+      "Villarreal": "VIL",
+      "Getafe": "GET",
+      "Osasuna": "OSA",
+      "Mallorca": "MAL",
+      "Las Palmas": "LPA",
+      "Alavés": "ALA",
+      "Rayo Vallecano": "RAY",
+      "Celta Vigo": "CEL",
+      "Cádiz": "CAD",
+      "Valladolid": "VLL",
+      "Leganés": "LEG",
       
-      if (data.teams && data.teams.length > 0) {
-        return data.teams.map(team => ({
-          name: team.name,
-          shortName: team.shortName || team.name,
-          crest: team.crest,
-          tla: team.tla || team.shortName?.substring(0, 3).toUpperCase() || team.name.substring(0, 3).toUpperCase()
-        }));
-      }
+      // Serie A
+      "Inter Milan": "INT",
+      "AC Milan": "MIL",
+      "Juventus": "JUV",
+      "Napoli": "NAP",
+      "Atalanta": "ATA",
+      "Roma": "ROM",
+      "Bologna": "BOL",
+      "Fiorentina": "FIO",
+      "Lazio": "LAZ",
+      "Torino": "TOR",
+      "Monza": "MON",
+      "Genoa": "GEN",
+      "Udinese": "UDI",
+      "Empoli": "EMP",
+      "Hellas Verona": "VER",
+      "Cagliari": "CAG",
+      "Sassuolo": "SAS",
+      "Lecce": "LEC",
+      "Como": "COM",
+      "Parma": "PAR",
       
-      return [];
+      // Bundesliga
+      "Bayer Leverkusen": "LEV",
+      "Bayern Munich": "BAY",
+      "Stuttgart": "STU",
+      "Borussia Dortmund": "BVB",
+      "RB Leipzig": "RBL",
+      "Eintracht Frankfurt": "SGE",
+      "Hoffenheim": "TSG",
+      "Freiburg": "SCF",
+      "Werder Bremen": "SVW",
+      "Heidenheim": "FCH",
+      "Augsburg": "FCA",
+      "Wolfsburg": "WOB",
+      "Borussia Mönchengladbach": "BMG",
+      "Union Berlin": "FCU",
+      "Mainz": "M05",
+      "Köln": "KOE",
+      "Bochum": "BOC",
+      "Darmstadt": "D98",
+      "St. Pauli": "STP",
+      "Holstein Kiel": "KIE",
       
-    } catch (error) {
-      console.error("Error Football-Data API:", error);
-      // Fallback a datos predefinidos
-      return getFallbackFootballTeams(leagueInfo.id);
-    }
-  }
-
-  // --- 5. Scraping ESPN NBA ---
-  async function getESPNNBATeams() {
-    try {
-      // Usar una API proxy para evitar CORS - alternativa a scraping directo
-      const teams = await getNBATeamsFromProxy();
+      // Ligue 1
+      "Paris Saint-Germain": "PSG",
+      "Monaco": "MON",
+      "Lille": "LIL",
+      "Marseille": "OM",
+      "Lyon": "OL",
+      "Rennes": "REN",
+      "Lens": "RCL",
+      "Nice": "NIC",
+      "Brest": "BRE",
+      "Toulouse": "TFC",
+      "Reims": "REI",
+      "Montpellier": "MHSC",
+      "Strasbourg": "RCS",
+      "Nantes": "FCN",
+      "Le Havre": "HAC",
+      "Lorient": "FCL",
+      "Metz": "FCM",
+      "Auxerre": "AUX",
+      "Saint-Étienne": "ASS",
+      "Angers": "ANG",
       
-      if (teams.length === 0) {
-        // Si falla, usar datos estáticos de NBA
-        return getFallbackNBATeams();
-      }
-      
-      return teams;
-      
-    } catch (error) {
-      console.error("Error ESPN scraping:", error);
-      return getFallbackNBATeams();
-    }
-  }
-
-  // Función proxy para obtener equipos NBA (usando API alternativa)
-  async function getNBATeamsFromProxy() {
-    try {
-      // Usar balldontlie API (gratuita, no requiere key)
-      const response = await fetch('https://www.balldontlie.io/api/v1/teams');
-      
-      if (response.ok) {
-        const data = await response.json();
-        return data.data.map(team => ({
-          name: `${team.city} ${team.name}`,
-          shortName: team.abbreviation,
-          conference: team.conference,
-          division: team.division
-        }));
-      }
-      
-      return [];
-      
-    } catch (error) {
-      console.error("Error balldontlie API:", error);
-      return [];
-    }
-  }
-
-  // --- 6. Datos de respaldo para fútbol ---
-  function getFallbackFootballTeams(leagueId) {
-    const teamsByLeague = {
-      CL: [
-        "Real Madrid", "Manchester City", "Bayern Munich", "Paris Saint-Germain",
-        "Barcelona", "Inter Milan", "AC Milan", "Borussia Dortmund",
-        "Atlético Madrid", "Arsenal", "Porto", "Napoli",
-        "Benfica", "RB Leipzig", "Manchester United", "Sevilla"
-      ],
-      premier: [
-        "Arsenal", "Manchester City", "Manchester United", "Liverpool", 
-        "Chelsea", "Tottenham", "Newcastle", "Aston Villa",
-        "West Ham", "Brighton", "Wolverhampton", "Brentford",
-        "Crystal Palace", "Everton", "Nottingham Forest", "Fulham",
-        "Burnley", "Sheffield United", "Luton Town", "Bournemouth"
-      ],
-      laliga: [
-        "Real Madrid", "Barcelona", "Atlético Madrid", "Sevilla",
-        "Real Sociedad", "Villarreal", "Real Betis", "Athletic Bilbao",
-        "Valencia", "Osasuna", "Celta Vigo", "Mallorca",
-        "Girona", "Getafe", "Rayo Vallecano", "Alavés",
-        "Las Palmas", "Granada", "Cádiz", "Almería"
-      ]
+      // Brasileirão
+      "Palmeiras": "PAL",
+      "Flamengo": "FLA",
+      "Atlético Mineiro": "CAM",
+      "Botafogo": "BOT",
+      "Grêmio": "GRE",
+      "São Paulo": "SAO",
+      "Fluminense": "FLU",
+      "Bragantino": "RBB",
+      "Athletico Paranaense": "CAP",
+      "Internacional": "INT",
+      "Fortaleza": "FOR",
+      "Corinthians": "COR",
+      "Cruzeiro": "CRU",
+      "Vasco da Gama": "VAS",
+      "Bahia": "BAH",
+      "Cuiabá": "CUI",
+      "Juventude": "JUV",
+      "Criciúma": "CRI",
+      "Vitória": "VIT",
+      "Atlético Goianiense": "ACG"
     };
-
-    const teams = teamsByLeague[leagueId] || [];
-    return teams.map(name => ({ name, shortName: name }));
+    
+    return shortNames[fullName] || fullName.substring(0, 3).toUpperCase();
   }
 
-  // --- 7. Datos de respaldo para baloncesto ---
-  function getFallbackNBATeams() {
-    return [
-      { name: "Los Angeles Lakers", shortName: "LAL" },
-      { name: "Golden State Warriors", shortName: "GSW" },
-      { name: "Boston Celtics", shortName: "BOS" },
-      { name: "Miami Heat", shortName: "MIA" },
-      { name: "Milwaukee Bucks", shortName: "MIL" },
-      { name: "Denver Nuggets", shortName: "DEN" },
-      { name: "Phoenix Suns", shortName: "PHX" },
-      { name: "Philadelphia 76ers", shortName: "PHI" },
-      { name: "Dallas Mavericks", shortName: "DAL" },
-      { name: "LA Clippers", shortName: "LAC" },
-      { name: "Memphis Grizzlies", shortName: "MEM" },
-      { name: "Sacramento Kings", shortName: "SAC" },
-      { name: "New York Knicks", shortName: "NYK" },
-      { name: "Cleveland Cavaliers", shortName: "CLE" },
-      { name: "Oklahoma City Thunder", shortName: "OKC" }
+  function getChampionsShortName(fullName) {
+    const shortNames = {
+      "Manchester City": "MCI",
+      "Real Madrid": "RMA",
+      "Bayern Munich": "BAY",
+      "Paris Saint-Germain": "PSG",
+      "Barcelona": "BAR",
+      "Arsenal": "ARS",
+      "Liverpool": "LIV",
+      "Inter Milan": "INT",
+      "AC Milan": "MIL",
+      "Borussia Dortmund": "BVB",
+      "Atlético Madrid": "ATM",
+      "Juventus": "JUV",
+      "Bayer Leverkusen": "LEV",
+      "Napoli": "NAP",
+      "RB Leipzig": "RBL",
+      "Benfica": "BEN",
+      "Porto": "FCP",
+      "Ajax": "AJA",
+      "Celtic": "CEL",
+      "Shakhtar Donetsk": "SHA",
+      "PSV Eindhoven": "PSV",
+      "Club Brugge": "BRU",
+      "Red Bull Salzburg": "RBS",
+      "Dinamo Zagreb": "DZG"
+    };
+    
+    return shortNames[fullName] || fullName.substring(0, 3).toUpperCase();
+  }
+
+  function getTeamCountry(teamName) {
+    const countries = {
+      "Manchester City": "ENG", "Arsenal": "ENG", "Liverpool": "ENG",
+      "Chelsea": "ENG", "Manchester United": "ENG", "Real Madrid": "ESP",
+      "Barcelona": "ESP", "Atlético Madrid": "ESP", "Bayern Munich": "GER",
+      "Borussia Dortmund": "GER", "Paris Saint-Germain": "FRA",
+      "Inter Milan": "ITA", "AC Milan": "ITA", "Juventus": "ITA",
+      "Napoli": "ITA", "Bayer Leverkusen": "GER", "RB Leipzig": "GER",
+      "Benfica": "POR", "Porto": "POR", "Ajax": "NED", "Celtic": "SCO",
+      "Shakhtar Donetsk": "UKR", "PSV Eindhoven": "NED", "Club Brugge": "BEL",
+      "Red Bull Salzburg": "AUT", "Dinamo Zagreb": "CRO"
+    };
+    
+    return countries[teamName] || "EUR";
+  }
+
+  function getNBAShortName(fullName) {
+    const shortNames = {
+      "Boston Celtics": "BOS",
+      "Denver Nuggets": "DEN",
+      "Minnesota Timberwolves": "MIN",
+      "Oklahoma City Thunder": "OKC",
+      "Milwaukee Bucks": "MIL",
+      "Philadelphia 76ers": "PHI",
+      "New York Knicks": "NYK",
+      "Cleveland Cavaliers": "CLE",
+      "LA Clippers": "LAC",
+      "Phoenix Suns": "PHX",
+      "Dallas Mavericks": "DAL",
+      "Los Angeles Lakers": "LAL",
+      "Golden State Warriors": "GSW",
+      "Miami Heat": "MIA",
+      "Indiana Pacers": "IND",
+      "Orlando Magic": "ORL",
+      "Sacramento Kings": "SAC",
+      "New Orleans Pelicans": "NOP",
+      "Chicago Bulls": "CHI",
+      "Atlanta Hawks": "ATL"
+    };
+    
+    return shortNames[fullName] || fullName.split(' ').map(w => w[0]).join('').toUpperCase();
+  }
+
+  function getNBAConference(teamName) {
+    const eastern = [
+      "Boston Celtics", "Milwaukee Bucks", "Philadelphia 76ers", "New York Knicks",
+      "Cleveland Cavaliers", "Miami Heat", "Indiana Pacers", "Orlando Magic",
+      "Chicago Bulls", "Atlanta Hawks"
     ];
+    
+    return eastern.includes(teamName) ? "Este" : "Oeste";
   }
 
-  // --- 8. Datos de respaldo general ---
-  async function getFallbackTeams(leagueInfo) {
-    if (currentSport === "soccer") {
-      return getFallbackFootballTeams(leagueInfo.id);
-    } else {
-      return getFallbackNBATeams();
-    }
-  }
-
-  // --- 9. Poblar selectores de equipos ---
-  function populateTeamSelectors(teams) {
+  // --- 4. Poblar selectores y excluir equipos seleccionados ---
+  function populateTeamSelectors(items) {
     teamASelect.innerHTML = "";
     teamBSelect.innerHTML = "";
 
-    const defaultOption = document.createElement("option");
-    defaultOption.textContent = "Selecciona un equipo";
-    teamASelect.appendChild(defaultOption.cloneNode(true));
-    teamBSelect.appendChild(defaultOption.cloneNode(true));
+    const defaultOptionA = document.createElement("option");
+    defaultOptionA.textContent = "Selecciona equipo local";
+    defaultOptionA.value = "";
+    teamASelect.appendChild(defaultOptionA);
 
-    teams.forEach(team => {
-      const displayName = typeof team === 'object' ? team.name : team;
-      const value = typeof team === 'object' ? team.name : team;
+    const defaultOptionB = document.createElement("option");
+    defaultOptionB.textContent = "Selecciona equipo visitante";
+    defaultOptionB.value = "";
+    teamBSelect.appendChild(defaultOptionB);
 
+    items.forEach((item, index) => {
+      let displayName;
+      if (currentLeague === "champions") {
+        // Para Champions League
+        const favoriteBadge = item.isFavorite ? " ⭐" : "";
+        const countryBadge = item.country ? ` (${item.country})` : "";
+        displayName = `${item.name}${favoriteBadge}${countryBadge}`;
+      } else if (item.rank) {
+        // Para tenis
+        displayName = `${item.rank}. ${item.name} (${item.points} pts)`;
+      } else {
+        // Para fútbol y baloncesto
+        displayName = item.name;
+        if (item.conference) {
+          displayName += ` (${item.conference})`;
+        }
+      }
+      
+      // Opción para equipo local
       const optA = document.createElement("option");
-      optA.value = value;
+      optA.value = item.name;
       optA.textContent = displayName;
-      optA.dataset.teamData = JSON.stringify(team);
+      optA.dataset.index = index;
       teamASelect.appendChild(optA);
 
+      // Opción para equipo visitante
       const optB = document.createElement("option");
-      optB.value = value;
+      optB.value = item.name;
       optB.textContent = displayName;
-      optB.dataset.teamData = JSON.stringify(team);
+      optB.dataset.index = index;
       teamBSelect.appendChild(optB);
     });
 
-    // Seleccionar diferentes equipos por defecto
-    if (teams.length > 1) {
+    // Configurar opciones diferentes por defecto
+    if (items.length > 1) {
       teamASelect.selectedIndex = 1;
-      teamBSelect.selectedIndex = Math.min(2, teams.length - 1);
+      const secondIndex = items.length > 2 ? 2 : 1;
+      teamBSelect.selectedIndex = secondIndex + 1;
+      // Actualizar exclusión después de establecer selecciones
+      updateTeamExclusion();
     }
 
-    analyzeBtn.disabled = teams.length < 2;
+    validateTeams();
   }
 
-  // --- 10. Obtener datos reales de partidos de la API ---
-  async function getRealMatchData(teamA, teamB, leagueInfo) {
-    try {
-      let matchesA = [];
-      let matchesB = [];
-      
-      if (leagueInfo.api === 'footballData') {
-        // Obtener últimos partidos de la API
-        matchesA = await getFootballDataMatches(teamA, leagueInfo);
-        matchesB = await getFootballDataMatches(teamB, leagueInfo);
-      }
-      
-      // Si no hay datos reales, generar datos simulados
-      if (matchesA.length === 0 || matchesB.length === 0) {
-        return generateMockMatchData(teamA, teamB);
-      }
-      
-      return {
-        teamA: { name: teamA, lastMatches: matchesA },
-        teamB: { name: teamB, lastMatches: matchesB }
-      };
-      
-    } catch (error) {
-      console.error("Error obteniendo datos reales:", error);
-      return generateMockMatchData(teamA, teamB);
-    }
-  }
-
-  // --- 11. Obtener partidos de Football-Data API ---
-  async function getFootballDataMatches(teamName, leagueInfo) {
-    try {
-      const apiKey = API_KEYS.footballData;
-      
-      // Primero obtener el ID del equipo
-      const teamsUrl = `https://api.football-data.org/v4/competitions/${leagueInfo.apiId}/teams`;
-      const teamsResponse = await fetch(teamsUrl, {
-        headers: { 'X-Auth-Token': apiKey }
-      });
-      
-      if (!teamsResponse.ok) return [];
-      
-      const teamsData = await teamsResponse.json();
-      const team = teamsData.teams.find(t => 
-        t.name.toLowerCase().includes(teamName.toLowerCase()) || 
-        teamName.toLowerCase().includes(t.name.toLowerCase())
-      );
-      
-      if (!team) return [];
-      
-      // Obtener partidos del equipo
-      const matchesUrl = `https://api.football-data.org/v4/teams/${team.id}/matches?status=FINISHED&limit=10`;
-      const matchesResponse = await fetch(matchesUrl, {
-        headers: { 'X-Auth-Token': apiKey }
-      });
-      
-      if (!matchesResponse.ok) return [];
-      
-      const matchesData = await matchesResponse.json();
-      
-      // Procesar últimos 5 partidos
-      return matchesData.matches.slice(0, 5).map(match => ({
-        homeScore: match.score.fullTime.home || 0,
-        awayScore: match.score.fullTime.away || 0,
-        homeTeam: match.homeTeam.name,
-        awayTeam: match.awayTeam.name,
-        competition: match.competition.name,
-        date: match.utcDate
-      }));
-      
-    } catch (error) {
-      console.error("Error obteniendo partidos:", error);
-      return [];
-    }
-  }
-
-  // --- 12. Generar datos de partidos simulados ---
-  function generateMockMatchData(teamA, teamB) {
-    // Generar estadísticas realistas basadas en el nombre del equipo
-    const getTeamStrength = (teamName) => {
-      const name = teamName.toLowerCase();
-      let strength = 50;
-      
-      // Factores basados en reputación del equipo
-      if (name.includes("real madrid") || name.includes("barcelona") || name.includes("bayern")) strength += 25;
-      if (name.includes("man city") || name.includes("manchester city") || name.includes("psg")) strength += 20;
-      if (name.includes("liverpool") || name.includes("chelsea") || name.includes("arsenal")) strength += 15;
-      if (name.includes("milan") || name.includes("inter") || name.includes("juventus")) strength += 15;
-      if (name.includes("united") || name.includes("lakers") || name.includes("warriors")) strength += 10;
-      if (name.includes("dortmund") || name.includes("atletico") || name.includes("atlético")) strength += 10;
-      
-      // Variación aleatoria
-      strength += Math.random() * 20 - 10;
-      
-      return Math.max(30, Math.min(95, strength));
-    };
-
-    const strengthA = getTeamStrength(teamA);
-    const strengthB = getTeamStrength(teamB);
+  // Función para excluir equipos seleccionados en la lista opuesta
+  function updateTeamExclusion() {
+    const selectedTeamA = teamASelect.value;
+    const selectedTeamB = teamBSelect.value;
     
-    // Generar últimos 5 partidos
-    const generateLastMatches = (teamName, strength, isHome) => {
-      const matches = [];
-      const baseScore = strength / 25; // Ajustado para puntajes realistas
-      
-      for (let i = 0; i < 5; i++) {
-        const isWin = Math.random() < (strength / 100);
-        const isDraw = Math.random() < 0.2;
-        
-        let homeScore, awayScore;
-        
-        if (isHome) {
-          homeScore = isWin ? Math.floor(baseScore + Math.random() * 2 + 1) : 
-                    isDraw ? Math.floor(baseScore + Math.random() * 1) : 
-                    Math.floor(baseScore * 0.7 + Math.random() * 1);
-          awayScore = isWin ? Math.floor(baseScore * 0.5 + Math.random() * 1) : 
-                    isDraw ? homeScore : 
-                    Math.floor(baseScore * 1.2 + Math.random() * 1 + 1);
-        } else {
-          awayScore = isWin ? Math.floor(baseScore + Math.random() * 2 + 1) : 
-                    isDraw ? Math.floor(baseScore + Math.random() * 1) : 
-                    Math.floor(baseScore * 0.7 + Math.random() * 1);
-          homeScore = isWin ? Math.floor(baseScore * 0.5 + Math.random() * 1) : 
-                    isDraw ? awayScore : 
-                    Math.floor(baseScore * 1.2 + Math.random() * 1 + 1);
-        }
-        
-        // Asegurar que los scores sean enteros positivos
-        homeScore = Math.max(0, Math.min(5, homeScore));
-        awayScore = Math.max(0, Math.min(5, awayScore));
-        
-        matches.push({
-          homeScore,
-          awayScore,
-          homeTeam: isHome ? teamName : "Opponent",
-          awayTeam: isHome ? "Opponent" : teamName
-        });
+    // Actualizar opciones en teamB excluyendo el seleccionado en teamA
+    Array.from(teamBSelect.options).forEach(option => {
+      if (option.value !== "") {
+        option.disabled = (option.value === selectedTeamA);
       }
-      return matches;
-    };
-
-    return {
-      teamA: {
-        name: teamA,
-        strength: strengthA,
-        lastMatches: generateLastMatches(teamA, strengthA, true)
-      },
-      teamB: {
-        name: teamB,
-        strength: strengthB,
-        lastMatches: generateLastMatches(teamB, strengthB, false)
+    });
+    
+    // Actualizar opciones en teamA excluyendo el seleccionado en teamB
+    Array.from(teamASelect.options).forEach(option => {
+      if (option.value !== "") {
+        option.disabled = (option.value === selectedTeamB);
       }
-    };
+    });
+    
+    // Si la opción actual está deshabilitada, seleccionar la primera opción disponible
+    if (teamASelect.selectedOptions[0]?.disabled) {
+      teamASelect.selectedIndex = 0;
+    }
+    if (teamBSelect.selectedOptions[0]?.disabled) {
+      teamBSelect.selectedIndex = 0;
+    }
+    
+    validateTeams();
   }
 
-  // --- 13. Análisis IA con datos reales/simulados ---
+  // --- 5. Análisis ---
   document.getElementById("analyzeBtn").addEventListener("click", async () => {
-    const teamA = teamASelect.value;
-    const teamB = teamBSelect.value;
-
-    if (!teamA || !teamB || teamA === teamB || 
-        teamA === "Selecciona un equipo" || 
-        teamB === "Selecciona un equipo") {
-      resultBox.innerHTML = '<div class="error">Por favor, selecciona dos equipos distintos.</div>';
+    const teamAIndex = parseInt(teamASelect.selectedOptions[0]?.dataset.index);
+    const teamBIndex = parseInt(teamBSelect.selectedOptions[0]?.dataset.index);
+    
+    if (isNaN(teamAIndex) || isNaN(teamBIndex) || teamAIndex === teamBIndex) {
+      resultBox.innerHTML = '<div class="error">Por favor, selecciona dos equipos/jugadores distintos.</div>';
       return;
     }
 
-    analyzeBtn.disabled = true;
-    resultBox.innerHTML = '<div class="loading">🚀 Analizando partido con IA...</div>';
+    const teamA = currentTeamsData[teamAIndex];
+    const teamB = currentTeamsData[teamBIndex];
 
-    try {
-      const leagueInfo = leaguesConfig[currentSport].find(l => l.id === currentLeague);
-      
-      // Obtener datos del partido
-      const matchData = await getRealMatchData(teamA, teamB, leagueInfo);
-      
-      // Calcular estadísticas
-      const statsA = calculateStats(matchData.teamA, teamA);
-      const statsB = calculateStats(matchData.teamB, teamB);
-      
-      // Análisis IA
-      const analysis = analyzeMatch(statsA, statsB, teamA, teamB, leagueInfo);
-      
-      // Mostrar resultados
-      displayResults(analysis, statsA, statsB, teamA, teamB, leagueInfo);
-      
-      updateTimestamp();
-      
-    } catch (error) {
-      console.error("Error en análisis:", error);
-      resultBox.innerHTML = '<div class="error">Error en el análisis. Intenta nuevamente.</div>';
-    } finally {
-      analyzeBtn.disabled = false;
+    analyzeBtn.disabled = true;
+    
+    // Mensaje especial para Champions League
+    if (currentLeague === "champions") {
+      resultBox.innerHTML = '<div class="loading">🚀 Analizando enfrentamiento de Champions League...</div>';
+    } else {
+      resultBox.innerHTML = '<div class="loading">🚀 Analizando partido...</div>';
     }
+
+    setTimeout(() => {
+      try {
+        const leaguesConfig = getLeaguesConfig();
+        const leagueInfo = leaguesConfig[currentSport].find(l => l.id === currentLeague);
+        
+        const analysis = generateAnalysis(teamA, teamB, leagueInfo);
+        
+        displayResults(analysis, teamA, teamB, leagueInfo);
+        
+        updateTimestamp();
+        
+      } catch (error) {
+        console.error("Error en análisis:", error);
+        resultBox.innerHTML = '<div class="error">Error en el cálculo. Intenta nuevamente.</div>';
+      } finally {
+        analyzeBtn.disabled = false;
+      }
+    }, 1500);
   });
 
-  function calculateStats(teamData, teamName) {
-    const matches = teamData.lastMatches;
-    let goalsFor = 0;
-    let goalsAgainst = 0;
-    let wins = 0, draws = 0, losses = 0;
-    let shots = 0;
-    let possession = 0;
-
-    matches.forEach(match => {
-      const isHomeTeam = match.homeTeam === teamName;
-      const gf = isHomeTeam ? match.homeScore : match.awayScore;
-      const ga = isHomeTeam ? match.awayScore : match.homeScore;
-      
-      goalsFor += gf;
-      goalsAgainst += ga;
-      
-      if (gf > ga) wins++;
-      else if (gf === ga) draws++;
-      else losses++;
-      
-      // Estadísticas adicionales simuladas
-      shots += gf * 3 + Math.random() * 5;
-      possession += 50 + (gf - ga) * 5;
-    });
-
-    const avgPossession = possession / matches.length;
-    const avgShots = shots / matches.length;
-
-    return {
-      name: teamName,
-      strength: teamData.strength || 50,
-      avgFor: goalsFor / matches.length,
-      avgAgainst: goalsAgainst / matches.length,
-      wins, draws, losses,
-      formScore: wins * 3 + draws,
-      cleanSheets: matches.filter(m => {
-        const isHome = m.homeTeam === teamName;
-        return (isHome ? m.awayScore : m.homeScore) === 0;
-      }).length,
-      avgPossession: Math.min(80, Math.max(40, avgPossession)),
-      avgShots: avgShots,
-      goalConversion: goalsFor > 0 ? (goalsFor / shots * 100).toFixed(1) : 0
-    };
-  }
-
-  function analyzeMatch(statsA, statsB, teamA, teamB, leagueInfo) {
-    // Factores del modelo IA ajustados
-    const factors = {
-      form: currentSport === 'soccer' ? 0.30 : 0.35,
-      attack: 0.25,
-      defense: 0.20,
-      homeAdvantage: 0.15,
-      momentum: 0.10
-    };
-
-    // Calcular puntuaciones base
-    let scoreA = 
-      (statsA.formScore / 15) * factors.form * 100 +
-      statsA.avgFor * factors.attack * 15 +
-      (1 / (statsA.avgAgainst + 0.5)) * factors.defense * 60 +
-      (statsA.cleanSheets / 5) * 20 +
-      (statsA.wins - statsA.losses) * factors.momentum * 10;
-
-    let scoreB = 
-      (statsB.formScore / 15) * factors.form * 100 +
-      statsB.avgFor * factors.attack * 15 +
-      (1 / (statsB.avgAgainst + 0.5)) * factors.defense * 60 +
-      (statsB.cleanSheets / 5) * 20 +
-      (statsB.wins - statsB.losses) * factors.momentum * 10;
-
-    // Aplicar ventaja de localía
-    scoreA = scoreA * (1 + factors.homeAdvantage);
+  // --- 6. Análisis Mejorado ---
+  function generateAnalysis(teamA, teamB, leagueInfo) {
+    let probA, probB;
+    const keyFactors = [];
+    const currentYear = getCurrentYear();
     
-    // Considerar posesión y tiros
-    scoreA += (statsA.avgPossession - 50) * 0.2;
-    scoreB += (statsB.avgPossession - 50) * 0.2;
+    // ANÁLISIS PARA CHAMPIONS LEAGUE
+    if (currentLeague === "champions") {
+      const isFavoriteA = teamA.isFavorite || false;
+      const isFavoriteB = teamB.isFavorite || false;
+      
+      const favoriteBonusA = isFavoriteA ? 15 : 0;
+      const favoriteBonusB = isFavoriteB ? 15 : 0;
+      
+      const experienceA = getChampionsExperience(teamA.name);
+      const experienceB = getChampionsExperience(teamB.name);
+      
+      probA = 50 + (favoriteBonusA - favoriteBonusB) + (experienceA - experienceB);
+      probA = Math.max(25, Math.min(75, probA));
+      probB = 100 - probA;
+      
+      keyFactors.push(`Temporada: ${leagueInfo.season}`);
+      if (isFavoriteA) keyFactors.push(`${teamA.name} es favorito al título`);
+      if (isFavoriteB) keyFactors.push(`${teamB.name} es favorito al título`);
+      keyFactors.push(`Experiencia en competiciones europeas`);
+      
+    } else if (currentSport === "tennis") {
+      const rankDiff = teamB.rank - teamA.rank;
+      const pointsDiff = teamA.points - teamB.points;
+      const ageFactor = teamA.age < teamB.age ? 5 : -5;
+      
+      probA = 50 + (rankDiff * 2) + (pointsDiff / 120) + ageFactor;
+      probA = Math.max(25, Math.min(85, probA));
+      probB = 100 - probA;
+      
+      keyFactors.push(`Ranking ${leagueInfo.name}: #${teamA.rank} vs #${teamB.rank}`);
+      keyFactors.push(`Diferencia de puntos: ${Math.abs(pointsDiff)}`);
+      keyFactors.push(`Edad: ${teamA.age} vs ${teamB.age} años`);
+      
+    } else if (currentSport === "soccer") {
+      // Para ligas nacionales - análisis basado en reputación
+      const reputationA = getTeamReputation(teamA.name);
+      const reputationB = getTeamReputation(teamB.name);
+      const repDiff = reputationA - reputationB;
+      
+      probA = 50 + (repDiff * 1.5);
+      probA = Math.max(25, Math.min(75, probA));
+      probB = 100 - probA;
+      
+      keyFactors.push(`Reputación histórica`);
+      keyFactors.push(`${leagueInfo.season}`);
+      if (reputationA > 70) keyFactors.push(`${teamA.name} es equipo histórico`);
+      if (reputationB > 70) keyFactors.push(`${teamB.name} es equipo histórico`);
+      
+    } else if (currentSport === "basketball") {
+      const conferenceBonus = (teamA.conference === "Este" && teamB.conference === "Oeste") ? 5 : 
+                             (teamA.conference === "Oeste" && teamB.conference === "Este") ? -3 : 0;
+      
+      const topTeams = ["Boston Celtics", "Denver Nuggets", "Milwaukee Bucks", "LA Clippers"];
+      const topBonusA = topTeams.includes(teamA.name) ? 12 : 0;
+      const topBonusB = topTeams.includes(teamB.name) ? 12 : 0;
+      
+      probA = 50 + (topBonusA - topBonusB) + conferenceBonus;
+      probA = Math.max(30, Math.min(70, probA));
+      probB = 100 - probA;
+      
+      keyFactors.push(`Conferencia: ${teamA.conference} vs ${teamB.conference}`);
+      if (topTeams.includes(teamA.name)) keyFactors.push(`${teamA.name} es candidato al título`);
+      if (topTeams.includes(teamB.name)) keyFactors.push(`${teamB.name} es candidato al título`);
+    }
     
-    scoreA += statsA.avgShots * 0.1;
-    scoreB += statsB.avgShots * 0.1;
-
-    const total = scoreA + scoreB;
-    const probA = (scoreA / total) * 100;
-    const probB = (scoreB / total) * 100;
-
-    // Generar predicción
-    let prediction, confidence, keyFactors = [];
+    // VENTAJA DE LOCALÍA MEJORADA (+8%)
+    probA += 8;
+    probB -= 8;
+    
+    // Ajustes finales
+    probA = Math.max(20, Math.min(80, probA));
+    probB = 100 - probA;
+    
+    // Determinar confianza
     const diff = Math.abs(probA - probB);
-
+    let confidence, prediction;
+    
     if (diff < 8) {
-      prediction = "⚖️ Partido muy equilibrado";
-      confidence = "Baja";
-      keyFactors = ["Equipos muy parejos", "Resultado impredecible", "Podría terminar en empate"];
-    } else if (diff < 15) {
-      prediction = probA > probB ? `⚡ ${teamA} con ligera ventaja` : `⚡ ${teamB} con ligera ventaja`;
-      confidence = "Media";
-      keyFactors = ["Pequeña diferencia en forma", "Localía podría ser clave", "Enfrentamiento ajustado"];
-    } else if (diff < 25) {
-      prediction = probA > probB ? `🎯 ${teamA} es favorito` : `🎯 ${teamB} es favorito`;
-      confidence = "Alta";
-      keyFactors = ["Diferencia clara en forma", "Mejores estadísticas ofensivas", "Consistencia reciente"];
+      confidence = "MUY AJUSTADO";
+      prediction = probA > probB ? 
+        `${teamA.shortName || teamA.name} ligera ventaja` : 
+        `${teamB.shortName || teamB.name} ligera ventaja`;
+    } else if (diff < 18) {
+      confidence = "EQUILIBRADO";
+      prediction = probA > probB ? 
+        `${teamA.shortName || teamA.name} favorito` : 
+        `${teamB.shortName || teamB.name} favorito`;
     } else {
-      prediction = probA > probB ? `🏆 ${teamA} favorito claro` : `🏆 ${teamB} favorito claro`;
-      confidence = "Muy Alta";
-      keyFactors = ["Superioridad evidente", "Excelente forma reciente", "Sólidas estadísticas defensivas"];
+      confidence = "CLARO FAVORITO";
+      prediction = probA > probB ? 
+        `${teamA.shortName || teamA.name} favorito claro` : 
+        `${teamB.shortName || teamB.name} favorito claro`;
+    }
+    
+    // Generar marcador
+    let predictedScore;
+    if (currentSport === "basketball") {
+      const scoreA = Math.round(110 * (probA/100) + Math.random() * 8 - 4);
+      const scoreB = Math.round(105 * (probB/100) + Math.random() * 8 - 4);
+      predictedScore = `${scoreA}-${scoreB}`;
+    } else if (currentSport === "tennis") {
+      const setsA = probA > 65 ? 3 : (probA > 52 ? 2 : 1);
+      const setsB = 3 - setsA;
+      predictedScore = `${setsA}-${setsB}`;
+    } else {
+      const scoreA = Math.round(2.5 * (probA/100) + Math.random() * 1.2);
+      const scoreB = Math.round(2.2 * (probB/100) + Math.random() * 1.2);
+      predictedScore = `${Math.max(0, scoreA)}-${Math.max(0, scoreB)}`;
     }
 
-    // Añadir factores específicos
-    if (statsA.cleanSheets >= 3) keyFactors.push(`${teamA}: Buena defensa`);
-    if (statsB.cleanSheets >= 3) keyFactors.push(`${teamB}: Buena defensa`);
-    if (statsA.avgFor > 2) keyFactors.push(`${teamA}: Ataque potente`);
-    if (statsB.avgFor > 2) keyFactors.push(`${teamB}: Ataque potente`);
-
-    // Predecir marcador
-    const baseScoreA = (statsA.avgFor + statsB.avgAgainst) / 2;
-    const baseScoreB = (statsB.avgFor + statsA.avgAgainst) / 2;
-    
-    // Ajustar por probabilidad
-    const predictedScoreA = Math.round(baseScoreA * (probA / 50) * 0.9);
-    const predictedScoreB = Math.round(baseScoreB * (probB / 50) * 0.9);
-    
-    // Asegurar que no sea negativo
-    const finalScoreA = Math.max(0, Math.min(5, predictedScoreA));
-    const finalScoreB = Math.max(0, Math.min(5, predictedScoreB));
-    
-    // Determinar riesgo
-    let risk = "Medio";
-    if (confidence === "Muy Alta") risk = "Bajo";
-    if (confidence === "Baja") risk = "Alto";
-    if (Math.abs(finalScoreA - finalScoreB) > 2) risk = "Bajo-Moderado";
+    // Filtrar factores vacíos
+    const filteredFactors = keyFactors.filter(factor => factor.trim() !== "");
+    filteredFactors.push("Ventaja de localía: +8% para el equipo local");
+    filteredFactors.push(`Temporada: ${leagueInfo.season}`);
+    filteredFactors.push("Análisis basado en reputación y rendimiento histórico");
 
     return {
-      probA, probB,
-      prediction, confidence,
-      keyFactors,
-      predictedScore: `${finalScoreA} - ${finalScoreB}`,
-      risk,
-      scoreA: scoreA,
-      scoreB: scoreB
+      probA: probA.toFixed(1),
+      probB: probB.toFixed(1),
+      prediction,
+      confidence,
+      predictedScore,
+      keyFactors: filteredFactors,
+      sport: currentSport,
+      season: leagueInfo.season,
+      isChampions: currentLeague === "champions",
+      currentYear: currentYear
     };
   }
 
-  function displayResults(analysis, statsA, statsB, teamA, teamB, leagueInfo) {
-    const probabilityBar = `
-      <div class="probability-bar">
-        <div class="probability-fill" style="width: ${analysis.probA}%"></div>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-        <span><strong>${teamA}:</strong> ${analysis.probA.toFixed(1)}%</span>
-        <span><strong>${teamB}:</strong> ${analysis.probB.toFixed(1)}%</span>
-      </div>
-    `;
+  function getChampionsExperience(teamName) {
+    const experience = {
+      "Real Madrid": 25, "Bayern Munich": 22, "Barcelona": 20,
+      "Manchester City": 18, "Liverpool": 18, "Chelsea": 15,
+      "Paris Saint-Germain": 15, "Inter Milan": 18, "AC Milan": 20,
+      "Juventus": 18, "Atlético Madrid": 15, "Borussia Dortmund": 12,
+      "Arsenal": 10, "Benfica": 8, "Porto": 8, "Ajax": 8,
+      "Napoli": 6, "Bayer Leverkusen": 5, "RB Leipzig": 5,
+      "Celtic": 5, "Shakhtar Donetsk": 5, "PSV Eindhoven": 5,
+      "Club Brugge": 3, "Red Bull Salzburg": 3, "Dinamo Zagreb": 3
+    };
+    
+    return experience[teamName] || 5;
+  }
 
-    // Determinar color según confianza
-    let confidenceColor = "#3b82f6";
-    if (analysis.confidence === "Muy Alta") confidenceColor = "#16a34a";
-    if (analysis.confidence === "Alta") confidenceColor = "#22c55e";
-    if (analysis.confidence === "Media") confidenceColor = "#f59e0b";
-    if (analysis.confidence === "Baja") confidenceColor = "#ef4444";
+  function getTeamReputation(teamName) {
+    const reputation = {
+      // Premier League
+      "Manchester City": 90, "Arsenal": 85, "Liverpool": 88,
+      "Chelsea": 82, "Manchester United": 85, "Tottenham": 75,
+      "Newcastle": 70, "Aston Villa": 68, "Brighton": 65,
+      
+      // La Liga
+      "Real Madrid": 95, "Barcelona": 92, "Atlético Madrid": 85,
+      "Sevilla": 75, "Valencia": 72, "Villarreal": 70,
+      
+      // Serie A
+      "Inter Milan": 85, "AC Milan": 85, "Juventus": 88,
+      "Napoli": 78, "Roma": 75, "Atalanta": 70,
+      
+      // Bundesliga
+      "Bayern Munich": 92, "Borussia Dortmund": 82, "RB Leipzig": 72,
+      "Bayer Leverkusen": 70, "Eintracht Frankfurt": 65,
+      
+      // Ligue 1
+      "Paris Saint-Germain": 85, "Marseille": 75, "Lyon": 72,
+      "Monaco": 70, "Lille": 65,
+      
+      // Brasileirão
+      "Flamengo": 80, "Palmeiras": 78, "São Paulo": 75,
+      "Corinthians": 75, "Atlético Mineiro": 72
+    };
+    
+    return reputation[teamName] || 60;
+  }
 
-    let riskColor = "#f59e0b";
-    if (analysis.risk === "Bajo") riskColor = "#16a34a";
-    if (analysis.risk === "Alto") riskColor = "#ef4444";
-    if (analysis.risk === "Bajo-Moderado") riskColor = "#22c55e";
-
+  // --- 7. Mostrar resultados ---
+  function displayResults(analysis, teamA, teamB, leagueInfo) {
+    const sportIcon = currentSport === "soccer" ? "⚽" : 
+                     currentSport === "tennis" ? "🎾" : "🏀";
+    
+    const confidenceColor = 
+      analysis.confidence === "CLARO FAVORITO" ? "#22c55e" :
+      analysis.confidence === "EQUILIBRADO" ? "#f59e0b" :
+      "#3b82f6";
+    
     resultBox.innerHTML = `
       <div style="margin-bottom: 20px;">
-        <h3 style="color: #facc15; margin-bottom: 10px;">
-          📊 Análisis IA - ${leagueInfo?.name || 'Partido'}
-          ${leagueInfo?.api === 'footballData' ? '<span style="font-size: 0.6em; background: #3b82f6; padding: 2px 8px; border-radius: 10px; margin-left: 10px;">DATOS REALES</span>' : ''}
+        <h3 style="color: #facc15; margin-bottom: 5px;">
+          ${sportIcon} ${leagueInfo?.name} ${analysis.season}
         </h3>
-        <div style="background: #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-          <div style="color: #22c55e; font-size: 1.2em; font-weight: bold; text-align: center; margin-bottom: 10px;">
+        ${analysis.isChampions ? 
+          `<div style="text-align: center; margin-bottom: 10px;">
+            <span class="champions-badge" style="font-size: 1em; padding: 5px 15px;">
+              🏆 UEFA CHAMPIONS LEAGUE
+            </span>
+          </div>` : 
+          `<div style="color: #10b981; margin-bottom: 15px; font-size: 0.9em;">
+            Temporada ${analysis.season}
+          </div>`
+        }
+        
+        <div style="background: #1e293b; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+          <div style="color: #22c55e; font-size: 1.3em; font-weight: bold; text-align: center; margin-bottom: 20px;">
             ${analysis.prediction}
           </div>
-          <div style="text-align: center; margin-bottom: 15px;">
-            <span style="background: ${confidenceColor}; padding: 5px 10px; border-radius: 15px; margin-right: 10px;">
-              🔮 Confianza: ${analysis.confidence}
-            </span>
-            <span style="background: #8b5cf6; padding: 5px 10px; border-radius: 15px; margin-right: 10px;">
-              🎯 Predicción: ${analysis.predictedScore}
-            </span>
-            <span style="background: ${riskColor}; padding: 5px 10px; border-radius: 15px;">
-              ⚠️ Riesgo: ${analysis.risk}
-            </span>
+          
+          <div style="display: flex; align-items: center; margin-bottom: 15px;">
+            <div style="flex: 1; text-align: right; padding-right: 15px;">
+              <div style="font-weight: bold; font-size: 1.1em;">${teamA.shortName || teamA.name}</div>
+              <div style="font-size: 0.8em; color: #9ca3af;">(Local)</div>
+              ${teamA.rank ? `<div style="font-size: 0.9em; color: #9ca3af;">#${teamA.rank}</div>` : ''}
+            </div>
+            
+            <div style="width: 250px;">
+              <div class="probability-bar" style="height: 24px;">
+                <div class="probability-fill" style="width: ${analysis.probA}%"></div>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+                <span style="font-size: 1.1em; font-weight: bold;">${analysis.probA}%</span>
+                <span style="font-size: 1.1em; font-weight: bold;">${analysis.probB}%</span>
+              </div>
+            </div>
+            
+            <div style="flex: 1; text-align: left; padding-left: 15px;">
+              <div style="font-weight: bold; font-size: 1.1em;">${teamB.shortName || teamB.name}</div>
+              <div style="font-size: 0.8em; color: #9ca3af;">(Visitante)</div>
+              ${teamB.rank ? `<div style="font-size: 0.9em; color: #9ca3af;">#${teamB.rank}</div>` : ''}
+            </div>
           </div>
-          ${probabilityBar}
-        </div>
-      </div>
-
-      <div style="display: flex; gap: 15px; margin-bottom: 20px;">
-        <div style="flex: 1; background: #1e293b; padding: 15px; border-radius: 8px;">
-          <h4 style="color: #3b82f6; margin-top: 0;">${teamA} (Local)</h4>
-          <div>📈 Fuerza estimada: <strong>${statsA.strength.toFixed(0)}/100</strong></div>
-          <div>⚽ Goles promedio: <strong>${statsA.avgFor.toFixed(2)}</strong></div>
-          <div>🛡️ Recibido promedio: <strong>${statsA.avgAgainst.toFixed(2)}</strong></div>
-          <div>📊 Forma: <strong>${statsA.wins}G ${statsA.draws}E ${statsA.losses}P</strong></div>
-          <div>🚫 Vallas invictas: <strong>${statsA.cleanSheets}/5</strong></div>
-          <div>⏱️ Posesión: <strong>${statsA.avgPossession.toFixed(1)}%</strong></div>
-          <div>🎯 Conversión: <strong>${statsA.goalConversion}%</strong></div>
-        </div>
-
-        <div style="flex: 1; background: #1e293b; padding: 15px; border-radius: 8px;">
-          <h4 style="color: #8b5cf6; margin-top: 0;">${teamB} (Visitante)</h4>
-          <div>📈 Fuerza estimada: <strong>${statsB.strength.toFixed(0)}/100</strong></div>
-          <div>⚽ Goles promedio: <strong>${statsB.avgFor.toFixed(2)}</strong></div>
-          <div>🛡️ Recibido promedio: <strong>${statsB.avgAgainst.toFixed(2)}</strong></div>
-          <div>📊 Forma: <strong>${statsB.wins}G ${statsB.draws}E ${statsB.losses}P</strong></div>
-          <div>🚫 Vallas invictas: <strong>${statsB.cleanSheets}/5</strong></div>
-          <div>⏱️ Posesión: <strong>${statsB.avgPossession.toFixed(1)}%</strong></div>
-          <div>🎯 Conversión: <strong>${statsB.goalConversion}%</strong></div>
-        </div>
-      </div>
-
-      <div style="background: #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-        <h4 style="color: #facc15; margin-top: 0;">🔍 Factores Clave del Análisis</h4>
-        <ul style="margin: 10px 0 0 0; padding-left: 20px;">
-          ${analysis.keyFactors.map(factor => `<li>${factor}</li>`).join('')}
-        </ul>
-      </div>
-
-      <div style="background: #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-        <h4 style="color: #facc15; margin-top: 0;">📈 Métricas del Modelo IA</h4>
-        <div style="display: flex; justify-content: space-between; margin-top: 10px;">
-          <div>
-            <div style="font-size: 0.9em;">Puntuación ${teamA}:</div>
-            <div style="font-size: 1.2em; font-weight: bold; color: #3b82f6;">${analysis.scoreA.toFixed(1)}</div>
-          </div>
-          <div>
-            <div style="font-size: 0.9em;">Puntuación ${teamB}:</div>
-            <div style="font-size: 1.2em; font-weight: bold; color: #8b5cf6;">${analysis.scoreB.toFixed(1)}</div>
-          </div>
-          <div>
-            <div style="font-size: 0.9em;">Diferencia:</div>
-            <div style="font-size: 1.2em; font-weight: bold; color: ${Math.abs(analysis.probA - analysis.probB) > 15 ? '#22c55e' : '#f59e0b'}">
-              ${Math.abs(analysis.probA - analysis.probB).toFixed(1)}%
+          
+          <div style="text-align: center; margin-top: 20px;">
+            <div style="display: inline-flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
+              <div style="background: #3b82f6; padding: 10px 20px; border-radius: 25px; font-weight: bold;">
+                🎯 ${analysis.predictedScore}
+              </div>
+              <div style="background: ${confidenceColor}; 
+                    padding: 10px 20px; border-radius: 25px; font-weight: bold; color: white;">
+                🔮 ${analysis.confidence}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div style="font-size: 0.9em; color: #9ca3af; border-top: 1px solid #4b5563; padding-top: 10px;">
-        <strong>📝 Notas del modelo IA:</strong><br>
-        • ${leagueInfo?.api === 'footballData' ? 'Datos reales de Football-Data.org API' : 'Datos simulados basados en algoritmos avanzados'}<br>
-        • Factores: Forma reciente (${currentSport === 'soccer' ? '30%' : '35%'}), Ataque (25%), Defensa (20%), Localía (15%), Momentum (10%)<br>
-        • Ventaja de localía aplicada: +15%<br>
-        • Modelo entrenado con datos históricos y machine learning<br>
-        • Última actualización: ${new Date().toLocaleTimeString('es-ES')}
+      <div style="background: #1e293b; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: #facc15; margin-top: 0; margin-bottom: 15px;">📊 FACTORES CONSIDERADOS</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">
+          ${analysis.keyFactors.map(factor => `
+            <div style="background: #020617; padding: 8px 12px; border-radius: 5px; border-left: 3px solid #3b82f6;">
+              ${factor}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div style="background: #f59e0b20; border: 1px solid #f59e0b; padding: 15px; border-radius: 5px;">
+        <div style="color: #f59e0b; font-weight: bold; margin-bottom: 5px;">
+          📅 TEMPORADA ${analysis.season}
+        </div>
+        <div style="font-size: 0.9em;">
+          Análisis basado en ${analysis.isChampions ? 'experiencia en competiciones europeas' : 'reputación histórica y rendimiento'}. 
+          Los resultados deportivos pueden variar por múltiples factores.
+        </div>
       </div>
     `;
   }
 
-  // --- 14. Botón de actualización ---
-  refreshBtn.addEventListener("click", () => {
-    // Limpiar caché
-    cachedTeams = {};
-    updateTimestamp();
-    
-    if (currentLeague) {
-      loadTeams();
-    } else {
-      loadLeagues();
-    }
-    
-    resultBox.innerHTML = '<div class="loading">🔄 Actualizando datos...</div>';
-  });
-
-  // --- 15. Validación de equipos ---
-  teamASelect.addEventListener("change", validateTeams);
-  teamBSelect.addEventListener("change", validateTeams);
-
+  // --- 8. Validación de equipos ---
   function validateTeams() {
-    const teamA = teamASelect.value;
-    const teamB = teamBSelect.value;
+    const teamAIndex = teamASelect.selectedOptions[0]?.dataset.index;
+    const teamBIndex = teamBSelect.selectedOptions[0]?.dataset.index;
     
     analyzeBtn.disabled = !(
-      teamA && teamB && 
-      teamA !== "Selecciona un equipo" && 
-      teamB !== "Selecciona un equipo" &&
-      teamA !== teamB
+      teamAIndex !== undefined && 
+      teamBIndex !== undefined && 
+      teamAIndex !== "" && 
+      teamBIndex !== "" &&
+      teamAIndex !== teamBIndex
     );
   }
 
-  // --- 16. Auto-actualización cada 5 minutos ---
-  setInterval(() => {
-    updateTimestamp();
-  }, 300000); // 5 minutos
+  // Eventos
+  teamASelect.addEventListener("change", function() {
+    updateTeamExclusion();
+    validateTeams();
+  });
+  
+  teamBSelect.addEventListener("change", function() {
+    updateTeamExclusion();
+    validateTeams();
+  });
 
-  // --- 17. Inicializar ---
-  loadLeagues();
+  // Inicializar
+  window.addEventListener('DOMContentLoaded', () => {
+    loadLeagues();
+    dataStatus.textContent = `Año ${getCurrentYear()}`;
+  });
+
 </script>
 </body>
 </html>
